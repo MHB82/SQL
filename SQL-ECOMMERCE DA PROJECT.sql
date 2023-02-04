@@ -1,22 +1,15 @@
-CREATE DATABASE E_Commerce ;
-USE E_Commerce 
+CREATE DATABASE dbo.e_commerce_data 
+USE dbo.e_commerce_data 
 
-ALTER TABLE dbo.Market_Fact ADD CONSTRAINT FK1 FOREIGN KEY (Ord_ID) REFERENCES dbo.Orders_Dimen 
-
-ALTER TABLE dbo.Market_Fact ADD CONSTRAINT FK2 FOREIGN KEY (Prod_ID) REFERENCES dbo.prod_dimen
-
-ALTER TABLE dbo.Market_Fact ADD CONSTRAINT FK3 FOREIGN KEY (Ship_ID) REFERENCES dbo.Shipping_Dimen
-
-ALTER TABLE dbo.Market_Fact ADD CONSTRAINT FK4 FOREIGN KEY (Cust_ID) REFERENCES dbo.cust_dimen
 
 
 --DaWSQL ---
 
---1.We created a new table named "combined_table" consisting these tables (ìmarket_factî, ìcust_dimenî, ìorders_dimenî, ìprod_dimenî, ìshipping_dimenî,)
+--1.We created a new table named "combined_table" consisting these tables (‚Äúmarket_fact‚Äù, ‚Äúcust_dimen‚Äù, ‚Äúorders_dimen‚Äù, ‚Äúprod_dimen‚Äù, ‚Äúshipping_dimen‚Äù,)
 
 select A.Sales, A.Discount, A.Order_Quantity, A.Product_Base_Margin, B.*,C.*,D.*,E.*
-INTO combined_table
-  from market_fact A
+INTO dbo.e_commerce_data 
+  from dbo.e_commerce_data A
         FULL OUTER JOIN orders_dimen B ON B.Ord_id = A.Ord_id
         FULL OUTER JOIN prod_dimen C ON C.Prod_id = A.Prod_id
         FULL OUTER JOIN cust_dimen D ON D.Cust_id = A.Cust_id
@@ -29,25 +22,25 @@ INTO combined_table
 
 
 SELECT TOP 3 Cust_ID, Customer_Name, COUNT(DISTINCT Ord_ID) AS count_of_order
-FROM combined_table
+FROM dbo.e_commerce_data 
 GROUP BY Cust_ID, Customer_Name
 ORDER BY count_of_order DESC 
 
 
 --3.Create a new column at combined_table as DaysTakenForShipping that contains the date difference of Order_Date and Ship_Date.
 
-Alter table combined_table add DaysTakenForShipping INT;
+Alter table dbo.e_commerce_data  add DaysTakenForShipping INT;
 
-UPDATE combined_table
+UPDATE dbo.e_commerce_data 
 SET DaysTakenForShipping = DATEDIFF(DAY,Order_Date,Ship_date)
 
 SELECT DaysTakenForShipping
-FROM combined_table
+FROM dbo.e_commerce_data 
 
 --4. Find the customer whose order took the maximum time to get shipping.
 
 SELECT top 1 Cust_ID, Customer_Name, Order_Date, Ship_Date, DaysTakenForShipping
-FROM combined_table
+FROM dbo.e_commerce_data 
 ORDER BY DaysTakenForShipping DESC
 
 
@@ -55,10 +48,10 @@ ORDER BY DaysTakenForShipping DESC
 
 
 SELECT MONTH(Order_Date) as month, count(DISTINCT Cust_ID) as count_of_customer
-FROM combined_table
+FROM dbo.e_commerce_data 
 WHERE Cust_ID IN(
                     SELECT Cust_ID
-                    FROM combined_table
+                    FROM dbo.e_commerce_data 
                     WHERE Datepart(MONTH, Order_Date) = 1 and YEAR(Order_Date) = 2011  
                 )
 AND YEAR(Order_Date) = 2011
@@ -74,7 +67,7 @@ WITH T1 AS
 SELECT Cust_ID,Order_Date,
 MIN(Order_Date) OVER (PARTITION BY Cust_ID order by Order_Date, Cust_ID) first_order,
 DENSE_RANK() OVER (PARTITION BY Cust_ID order by Order_Date, Cust_ID) dn_rnk
-FROM combined_table 
+FROM dbo.e_commerce_data  
 )
 SELECT distinct Cust_ID, Order_Date, DATEDIFF(DAY,first_order,Order_Date ) AS elapsed_time
 FROM  T1 
@@ -90,13 +83,13 @@ WITH T1 AS
 SELECT  Cust_ID, COUNT(Prod_ID) total_prod,
         SUM(CASE WHEN Prod_ID = 'Prod_11' THEN 1 ELSE 0 END) AS PRO_11,
         SUM(CASE WHEN Prod_ID = 'Prod_14' THEN 1 ELSE 0 END) AS PRO_14
-FROM combined_table
+FROM dbo.e_commerce_data 
 WHERE Cust_ID in (SELECT Cust_ID
-                  FROM combined_table 
+                  FROM dbo.e_commerce_data  
                   WHERE Prod_ID = 'Prod_11'
                   INTERSECT
                   SELECT Cust_ID
-                  FROM combined_table 
+                  FROM dbo.e_commerce_data  
                   WHERE Prod_ID = 'Prod_14')
 GROUP BY Cust_ID
 )
@@ -108,25 +101,25 @@ FROM T1
 --Customer Segmentation
 --Categorize customers based on their frequency of visits. The following steps will guide you. If you want, you can track your own way.
 
---1. Create a ìviewî that keeps visit logs of customers on a monthly basis. (For each log, three field is kept: Cust_id, Year, Month)
+--1. Create a ‚Äúview‚Äù that keeps visit logs of customers on a monthly basis. (For each log, three field is kept: Cust_id, Year, Month)
 
 CREATE VIEW logs_of_customer
 AS 
 SELECT Cust_ID, YEAR(Order_Date) [Year], MONTH(Order_Date) [Month]
-FROM combined_table
+FROM dbo.e_commerce_data 
 
 SELECT*
 FROM logs_of_customer
 ORDER by Cust_ID,[Year]
 
 
---2. Create a ìviewî that keeps the number of monthly visits by users. (Show separately all months from the beginning business)
+--2. Create a ‚Äúview‚Äù that keeps the number of monthly visits by users. (Show separately all months from the beginning business)
 
 
 CREATE VIEW montly_visits
 AS 
 SELECT Cust_ID, MONTH(Order_Date) Month_order, COUNT(Order_Date) cnt_order
-FROM combined_table
+FROM dbo.e_commerce_data 
 GROUP BY Cust_ID, MONTH(Order_Date)
 
 
@@ -152,7 +145,7 @@ WITH T2  AS
 (
 SELECT distinct Cust_ID, Order_Date,
 lead(Order_Date) over (partition by Cust_ID ORDER by Order_Date) next_order
-FROM combined_table
+FROM dbo.e_commerce_data 
 )
 SELECT*, DATEDIFF(MONTH, Order_Date, next_order) as monthly_time_gap
 FROM T2
@@ -177,7 +170,7 @@ Month-Wise Retention Rate
 Find month-by-month customer retention ratei since the start of the business.
 There are many different variations in the calculation of Retention Rate. But we will try to calculate the month-wise retention rate in this project.
 So, we will be interested in how many of the customers in the previous month could be retained in the next month.
-Proceed step by step by creating ìviewsî. You can use the view you got at the end of the Customer Segmentation section as a source.
+Proceed step by step by creating ‚Äúviews‚Äù. You can use the view you got at the end of the Customer Segmentation section as a source.
 
 
 
